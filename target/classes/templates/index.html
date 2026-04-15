@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Bank Statement Extractor</title>
+    <style>
+        /* ── Reset & base ──────────────────────────────────────────────── */
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            background: #f0f4f8;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+            color: #1a202c;
+        }
+
+        /* ── Card ──────────────────────────────────────────────────────── */
+        .card {
+            background: #fff;
+            border-radius: 16px;
+            box-shadow: 0 4px 24px rgba(0,0,0,.10);
+            padding: 2.5rem 3rem;
+            width: 100%;
+            max-width: 520px;
+        }
+
+        /* ── Header ────────────────────────────────────────────────────── */
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: .75rem;
+            margin-bottom: 1.75rem;
+        }
+        .logo-icon {
+            width: 44px; height: 44px;
+            background: linear-gradient(135deg, #3b82f6, #6366f1);
+            border-radius: 12px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.4rem;
+        }
+        .logo h1 { font-size: 1.25rem; font-weight: 700; color: #1e293b; line-height: 1.2; }
+        .logo p  { font-size: .78rem; color: #64748b; }
+
+        /* ── Error banner ──────────────────────────────────────────────── */
+        .error-banner {
+            background: #fef2f2;
+            border: 1px solid #fca5a5;
+            border-radius: 8px;
+            padding: .75rem 1rem;
+            color: #dc2626;
+            font-size: .875rem;
+            margin-bottom: 1.25rem;
+            display: flex; align-items: center; gap: .5rem;
+        }
+
+        /* ── Form elements ─────────────────────────────────────────────── */
+        label.field-label {
+            display: block;
+            font-size: .8rem;
+            font-weight: 600;
+            color: #475569;
+            margin-bottom: .4rem;
+            text-transform: uppercase;
+            letter-spacing: .04em;
+        }
+
+        /* Drop zone */
+        .drop-zone {
+            border: 2px dashed #cbd5e1;
+            border-radius: 12px;
+            padding: 2rem 1.5rem;
+            text-align: center;
+            cursor: pointer;
+            transition: border-color .2s, background .2s;
+            margin-bottom: 1.25rem;
+            position: relative;
+        }
+        .drop-zone:hover, .drop-zone.drag-over {
+            border-color: #3b82f6;
+            background: #eff6ff;
+        }
+        .drop-zone input[type="file"] {
+            position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%;
+        }
+        .drop-zone .dz-icon { font-size: 2rem; margin-bottom: .5rem; }
+        .drop-zone .dz-text { font-size: .9rem; color: #64748b; }
+        .drop-zone .dz-text strong { color: #3b82f6; }
+        .drop-zone .dz-hint { font-size: .75rem; color: #94a3b8; margin-top: .25rem; }
+        .file-chosen { font-size: .8rem; color: #16a34a; margin-top: .5rem; font-weight: 600; }
+
+        /* Format selector */
+        .format-group {
+            display: flex; gap: .75rem; margin-bottom: 1.5rem;
+        }
+        .format-option {
+            flex: 1; position: relative;
+        }
+        .format-option input[type="radio"] { position: absolute; opacity: 0; width: 0; height: 0; }
+        .format-option label {
+            display: flex; flex-direction: column; align-items: center; gap: .3rem;
+            border: 2px solid #e2e8f0;
+            border-radius: 10px;
+            padding: .75rem .5rem;
+            cursor: pointer;
+            transition: border-color .2s, background .2s;
+            font-size: .8rem;
+            font-weight: 600;
+            color: #475569;
+        }
+        .format-option label .fmt-icon { font-size: 1.4rem; }
+        .format-option input:checked + label {
+            border-color: #3b82f6;
+            background: #eff6ff;
+            color: #1d4ed8;
+        }
+
+        /* Buttons */
+        .btn-row { display: flex; gap: .75rem; }
+        .btn {
+            flex: 1;
+            padding: .75rem 1rem;
+            border: none; border-radius: 10px;
+            font-size: .9rem; font-weight: 600;
+            cursor: pointer; transition: opacity .15s, transform .1s;
+        }
+        .btn:active { transform: scale(.98); }
+        .btn-primary {
+            background: linear-gradient(135deg, #3b82f6, #6366f1);
+            color: #fff;
+        }
+        .btn-primary:hover { opacity: .9; }
+        .btn-secondary {
+            background: #f1f5f9;
+            color: #475569;
+            border: 1px solid #e2e8f0;
+        }
+        .btn-secondary:hover { background: #e2e8f0; }
+
+        /* Debug form (hidden) */
+        #debugForm { display: none; }
+
+        /* ── Footer ────────────────────────────────────────────────────── */
+        footer { margin-top: 1.5rem; font-size: .75rem; color: #94a3b8; text-align: center; }
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <div class="logo">
+        <div class="logo-icon">📄</div>
+        <div>
+            <h1>Bank Statement Extractor</h1>
+            <p>Upload a PDF to extract transactions &amp; metadata</p>
+        </div>
+    </div>
+
+    <!-- Error banner -->
+    <div class="error-banner" th:if="${error}">
+        ⚠️ <span th:text="${error}">Error message</span>
+    </div>
+
+    <!-- Main upload form -->
+    <form id="uploadForm" th:action="@{/extract}" method="post" enctype="multipart/form-data">
+
+        <!-- File drop zone -->
+        <label class="field-label">PDF File</label>
+        <div class="drop-zone" id="dropZone">
+            <input type="file" name="file" id="fileInput" accept=".pdf" required
+                   onchange="onFileChosen(this)"/>
+            <div class="dz-icon">☁️</div>
+            <div class="dz-text"><strong>Click to browse</strong> or drag &amp; drop</div>
+            <div class="dz-hint">PDF files only · max 50 MB</div>
+            <div class="file-chosen" id="fileChosen" style="display:none"></div>
+        </div>
+
+        <!-- Export format -->
+        <label class="field-label">Export Format</label>
+        <div class="format-group">
+            <div class="format-option">
+                <input type="radio" name="format" id="fmtXlsx" value="xlsx" checked/>
+                <label for="fmtXlsx">
+                    <span class="fmt-icon">📊</span>Excel
+                </label>
+            </div>
+            <div class="format-option">
+                <input type="radio" name="format" id="fmtCsv" value="csv"/>
+                <label for="fmtCsv">
+                    <span class="fmt-icon">📋</span>CSV
+                </label>
+            </div>
+            <div class="format-option">
+                <input type="radio" name="format" id="fmtJson" value="json"/>
+                <label for="fmtJson">
+                    <span class="fmt-icon">🔧</span>JSON
+                </label>
+            </div>
+        </div>
+
+        <div class="btn-row">
+            <button type="submit" class="btn btn-primary" id="submitBtn">
+                ⚡ Extract
+            </button>
+            <button type="button" class="btn btn-secondary" onclick="submitDebug()">
+                🔍 Debug PDF
+            </button>
+        </div>
+    </form>
+
+    <!-- Debug form (separate POST to /debug) -->
+    <form id="debugForm" th:action="@{/debug}" method="post"
+          enctype="multipart/form-data" target="_blank">
+        <input type="file" name="file" id="debugFileInput" style="display:none"/>
+    </form>
+</div>
+
+<footer>Société Générale · BNP Paribas · Crédit Agricole · and more French &amp; international banks</footer>
+
+<script>
+    // File chosen feedback
+    function onFileChosen(input) {
+        const label = document.getElementById('fileChosen');
+        if (input.files && input.files[0]) {
+            label.textContent = '✓ ' + input.files[0].name;
+            label.style.display = 'block';
+        }
+    }
+
+    // Drag and drop styling
+    const dz = document.getElementById('dropZone');
+    dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('drag-over'); });
+    dz.addEventListener('dragleave', () => dz.classList.remove('drag-over'));
+    dz.addEventListener('drop', e => {
+        e.preventDefault();
+        dz.classList.remove('drag-over');
+        const fi = document.getElementById('fileInput');
+        fi.files = e.dataTransfer.files;
+        onFileChosen(fi);
+    });
+
+    // Loading state on submit
+    document.getElementById('uploadForm').addEventListener('submit', () => {
+        document.getElementById('submitBtn').textContent = '⏳ Extracting…';
+        document.getElementById('submitBtn').disabled = true;
+    });
+
+    // Debug: copy selected file into hidden debug form and submit
+    function submitDebug() {
+        const fi = document.getElementById('fileInput');
+        if (!fi.files || fi.files.length === 0) {
+            alert('Please select a PDF file first.');
+            return;
+        }
+        const dt = new DataTransfer();
+        dt.items.add(fi.files[0]);
+        document.getElementById('debugFileInput').files = dt.files;
+        document.getElementById('debugForm').submit();
+    }
+</script>
+</body>
+</html>
